@@ -7,6 +7,32 @@ menu "Character devices"
 
 source "drivers/tty/Kconfig"
 
+config XENON_SMC
+	tristate "Xenon System Management Controller (SMC)"
+	depends on PPC_XENON
+	help
+	  Character interface to the System Management controller in the
+	  Xbox 360. Allows to send arbitrary SMC commands and receive
+	  SMC replies.
+
+config XENON_ANA
+	tristate "Xenon (H)ana Character Device"
+	depends on PPC_XENON
+	help
+	  Character interface to the (H)ana chip on the Xbox 360.
+
+config XENON_PROBE
+	tristate "Xenon Memory Probe Device"
+	depends on PPC_XENON && EXPERIMENTAL
+	help
+	  Character interface to do memory probing on the Xbox 360.
+
+config XENOS_RB
+	tristate "Xenos Ring Buffer Device"
+	depends on PPC_XENON && HAS_DMA
+	help
+	  Character device supporting raw ringbuffer writes to the Xenos.
+
 config TTY_PRINTK
 	tristate "TTY driver to output user messages via printk"
 	depends on EXPERT && TTY

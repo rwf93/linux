@@ -89,7 +89,7 @@ config MESSAGE_LOGLEVEL_DEFAULT
 
 config BOOT_PRINTK_DELAY
 	bool "Delay each boot printk message by N milliseconds"
-	depends on DEBUG_KERNEL && PRINTK && GENERIC_CALIBRATE_DELAY
+	depends on DEBUG_KERNEL && PRINTK
 	help
 	  This build option allows you to read kernel boot messages
 	  by inserting a short delay after each one.  The delay is

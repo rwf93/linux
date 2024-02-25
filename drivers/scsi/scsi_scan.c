@@ -665,6 +665,7 @@ static int scsi_probe_lun(struct scsi_device *sdev, unsigned char *inq_result,
 		memset(scsi_cmd, 0, 6);
 		scsi_cmd[0] = INQUIRY;
 		scsi_cmd[4] = (unsigned char) try_inquiry_len;
+		scsi_cmd[5] = 0xc0; /* HACK */
 
 		memset(inq_result, 0, try_inquiry_len);
 

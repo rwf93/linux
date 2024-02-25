@@ -123,6 +123,7 @@ obj-$(CONFIG_FB_SM712)		  += sm712fb.o
 obj-$(CONFIG_FB_UVESA)            += uvesafb.o
 obj-$(CONFIG_FB_VESA)             += vesafb.o
 obj-$(CONFIG_FB_EFI)              += efifb.o
+obj-$(CONFIG_FB_XENOS)            += xenosfb.o
 obj-$(CONFIG_FB_VGA16)            += vga16fb.o
 obj-$(CONFIG_FB_OF)               += offb.o
 obj-$(CONFIG_FB_MX3)		  += mx3fb.o

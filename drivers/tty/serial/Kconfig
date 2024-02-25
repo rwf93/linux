@@ -1529,6 +1529,39 @@ config SERIAL_MILBEAUT_USIO_CONSOLE
 	  receives all kernel messages and warnings and which allows logins in
 	  single user mode).
 
+config SERIAL_XENON
+	tristate "Xenon XBOX 360 serial port support"
+	select SERIAL_CORE
+	help
+	  If you have an XBOX 360, you can enable its onboard
+	  serial port by enabling this options.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called xenon_uart.
+
+config SERIAL_XENON_CONSOLE
+	bool "Console on XBOX 360 serial port"
+	depends on SERIAL_XENON=y
+	select SERIAL_CORE_CONSOLE
+	help
+	  If you have enabled the serial port on the XBOX 360
+
+	  you can make it the console by answering Y to this option.
+
+config SERIAL_XENON_UART_POLL
+  bool "Enable serial RX polling from the SMC"
+  depends on SERIAL_XENON=y
+  help
+    If you have this enabled, the the UART driver will enable polling from the RX.
+
+config SERIAL_XENON_UART_POLL_RATE
+  int "UART poll rate"
+  depends on SERIAL_XENON_UART_POLL=y
+  range 10 100
+  default "10"
+  help
+    Sets the polling rate for UART polling
+
 config SERIAL_LITEUART
 	tristate "LiteUART serial port support"
 	depends on HAS_IOMEM

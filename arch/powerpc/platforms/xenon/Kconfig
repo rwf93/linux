@@ -1,0 +1,18 @@
+config PPC_XENON
+	bool "Xenon"
+	depends on PPC64
+	select PPC_NATIVE
+	select DMA_VIRT_OPS
+	select HAVE_PCI
+	default y
+	help
+	  This option enables support for the Xbox 360 game console
+	  without a hypervisor.
+
+config XENON_UDBG
+	bool "Xenon Early Console"
+	depends on PPC_XENON
+	select FONT_SUPPORT
+	help
+		This option enables early debugging over ethernet for the
+		Xenon platform.

@@ -54,6 +54,7 @@ obj-$(CONFIG_SND_SIS7019) += snd-sis7019.o
 obj-$(CONFIG_SND_SONICVIBES) += snd-sonicvibes.o
 obj-$(CONFIG_SND_VIA82XX) += snd-via82xx.o
 obj-$(CONFIG_SND_VIA82XX_MODEM) += snd-via82xx-modem.o
+obj-$(CONFIG_SND_XENON) += snd-xenon.o
 
 obj-$(CONFIG_SND) += \
 	ac97/ \

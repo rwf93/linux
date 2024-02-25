@@ -2212,6 +2212,13 @@ config SENSORS_INTEL_M10_BMC_HWMON
 	  sensors monitor various telemetry data of different components on the
 	  card, e.g. board temperature, FPGA core temperature/voltage/current.
 
+config SENSORS_XENON
+	tristate "Xenon SMC"
+	depends on PPC_XENON
+	help
+	  This driver provides support for the Xenon SMC sensors and
+	  fan control.
+
 if ACPI
 
 comment "ACPI drivers"
