@@ -108,12 +108,6 @@ static const struct ata_port_info xenon_port_info = {
 //	.private_data   = NULL
 };
 
-
-MODULE_DESCRIPTION("low-level driver for Xenon Southbridge SATA controller");
-MODULE_LICENSE("GPL");
-MODULE_DEVICE_TABLE(pci, xenon_pci_tbl);
-MODULE_VERSION(DRV_VERSION);
-
 static unsigned int get_scr_cfg_addr(unsigned int sc_reg)
 {
 	if ((sc_reg > SCR_CONTROL) || (sc_reg == SCR_ERROR)) /* doesn't exist in PCI cfg space */
@@ -202,6 +196,9 @@ static int xenon_init_one (struct pci_dev *pdev, const struct pci_device_id *ent
 		goto err_out;
 	}
 
+	// Another quick hack to get around IOMMU being forced on later kernels.
+	pdev->dev.dma_ops = NULL;
+
 	rc = pci_set_dma_mask(pdev, ATA_DMA_MASK);
 	if (rc)
 		goto err_out_regions;
@@ -250,3 +247,8 @@ static void __exit xenon_exit(void)
 
 module_init(xenon_init);
 module_exit(xenon_exit);
+
+MODULE_DESCRIPTION("low-level driver for Xenon Southbridge SATA controller");
+MODULE_LICENSE("GPL");
+MODULE_DEVICE_TABLE(pci, xenon_pci_tbl);
+MODULE_VERSION(DRV_VERSION);
