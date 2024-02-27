@@ -73,8 +73,8 @@ static int xenon_scr_write (struct ata_link *link, unsigned int sc_reg, u32 val)
 static void xenon_bmdma_error_handler(struct ata_port *ap);
 
 static const struct pci_device_id xenon_pci_tbl[] = {
-	{ PCI_VDEVICE(MICROSOFT, 0x5803), 0 },
-	/* { PCI_VDEVICE(MICROSOFT, 0x5802), 0 }, */
+	{ PCI_VDEVICE(MICROSOFT, 0x5803), 0 }, // Hdd
+	{ PCI_VDEVICE(MICROSOFT, 0x5802), 0 }, // CdDvd
 
 	{ }	/* terminate list */
 };
@@ -195,9 +195,6 @@ static int xenon_init_one (struct pci_dev *pdev, const struct pci_device_id *ent
 	if (rc) {
 		goto err_out;
 	}
-
-	// Another quick hack to get around IOMMU being forced on later kernels.
-	pdev->dev.dma_ops = NULL;
 
 	rc = pci_set_dma_mask(pdev, ATA_DMA_MASK);
 	if (rc)

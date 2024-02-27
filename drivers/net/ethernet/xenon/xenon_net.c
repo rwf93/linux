@@ -316,7 +316,6 @@ static void xenon_net_init_ring(struct net_device *dev)
 	}
 
 	/* allocate descriptor memory */
-	tp->pdev->dev.dma_ops_bypass = true;
 	tp->tx_descriptor_base =
 		pci_alloc_consistent(tp->pdev,
 					   TX_RING_SIZE * 0x10 + RX_RING_SIZE * 0x10,

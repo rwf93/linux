@@ -26,6 +26,8 @@
 #include <asm/iommu.h>
 #include <asm/ppc-pci.h>
 
+#include <asm/dma-mapping.h>
+
 #ifdef DEBUG
 #define DBG(x...) printk(x)
 #else
@@ -206,7 +208,8 @@ void __init xenon_pci_init(void)
 	pci_io_base = 0;
 
 	// pcibios_scan_phb(hose, dev);
-	set_pci_dma_ops(&dma_iommu_ops);
+	// Xbox 360 doesn't have IOMMU support. Who made this code?
+	// set_pci_dma_ops(&dma_direct_ops);
 }
 
 #else
@@ -300,7 +303,9 @@ void __init xenon_pci_init(void)
 	/* do we need that? */
 	ppc_md.pci_dma_dev_setup = NULL;
 	ppc_md.pci_dma_bus_setup = NULL;
-	set_pci_dma_ops(&dma_iommu_ops);
+
+	// Xbox 360 doesn't have IOMMU support. Who made this code?
+	// set_pci_dma_ops(&dma_iommu_ops);
 }
 
 #endif
