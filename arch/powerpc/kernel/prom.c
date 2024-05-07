@@ -327,6 +327,7 @@ static int __init early_init_dt_scan_cpus(unsigned long node,
 		intserv = of_get_flat_dt_prop(node, "reg", &len);
 
 	nthreads = len / sizeof(int);
+	DBG("%s with %d threads \"%s\" v%d", type, nthreads, uname, fdt_version(initial_boot_params));
 
 	/*
 	 * Now see if any of these threads match our boot cpu.
