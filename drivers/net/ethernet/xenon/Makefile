@@ -1,0 +1,1 @@
+obj-$(CONFIG_NET_XENON) += xenon_net.o

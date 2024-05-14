@@ -145,6 +145,7 @@ obj-y				+= clocksource/
 obj-$(CONFIG_DCA)		+= dca/
 obj-$(CONFIG_HID_SUPPORT)	+= hid/
 obj-$(CONFIG_PPC_PS3)		+= ps3/
+obj-$(CONFIG_PPC_XENON)		+= xenon/
 obj-$(CONFIG_OF)		+= of/
 obj-$(CONFIG_SSB)		+= ssb/
 obj-$(CONFIG_BCMA)		+= bcma/
