@@ -1,0 +1,3 @@
+config NET_XENON
+       tristate "Xenon Fast Ethernet Adapter support"
+       depends on PCI

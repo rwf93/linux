@@ -207,6 +207,9 @@
 /* Atheros AR933X SoC */
 #define PORT_AR933X	99
 
+/* Xenon XBOX 360 Southbridge */
+#define PORT_XENON     91
+
 /* ARC (Synopsys) on-chip UART */
 #define PORT_ARC       101
 

@@ -11,6 +11,10 @@ obj-$(CONFIG_VIRTIO_CONSOLE)	+= virtio_console.o
 obj-$(CONFIG_MSPEC)		+= mspec.o
 obj-$(CONFIG_UV_MMTIMER)	+= uv_mmtimer.o
 obj-$(CONFIG_IBM_BSR)		+= bsr.o
+obj-$(CONFIG_XENON_SMC)  	+= xenon_smc.o
+obj-$(CONFIG_XENON_ANA)  	+= xenon_ana.o
+obj-$(CONFIG_XENON_PROBE)  	+= xenon_probe.o
+obj-$(CONFIG_XENOS_RB)    += xenos_rb.o
 
 obj-$(CONFIG_PRINTER)		+= lp.o
 

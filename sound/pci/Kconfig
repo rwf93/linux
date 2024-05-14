@@ -909,6 +909,15 @@ config SND_YMFPCI
 	  To compile this driver as a module, choose M here: the module
 	  will be called snd-ymfpci.
 
+config SND_XENON
+	tristate "Xenon XBOX 360 Sound"
+	select SND_PCM
+	help
+	  Say Y here to include support for the Xenon XBOX 360 soundcard.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called snd-xenon.
+
 endif	# SND_PCI
 
 source "sound/pci/hda/Kconfig"
