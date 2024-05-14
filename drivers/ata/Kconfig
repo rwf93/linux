@@ -525,6 +525,14 @@ config SATA_SVW
 
 	  If unsure, say N.
 
+config SATA_XENON
+	tristate "Xenon SATA support"
+	depends on PCI
+	help
+	  This option enables support for Xenon southbridge.
+
+	  If unsure, say N.
+
 config SATA_ULI
 	tristate "ULi Electronics SATA support"
 	depends on PCI

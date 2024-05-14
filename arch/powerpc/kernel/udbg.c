@@ -67,6 +67,8 @@ void __init udbg_early_init(void)
 	udbg_init_debug_opal_raw();
 #elif defined(CONFIG_PPC_EARLY_DEBUG_OPAL_HVSI)
 	udbg_init_debug_opal_hvsi();
+#elif defined(CONFIG_PPC_EARLY_DEBUG_XENON)
+	udbg_init_xenon();
 #elif defined(CONFIG_PPC_EARLY_DEBUG_16550)
 	udbg_init_debug_16550();
 #endif
