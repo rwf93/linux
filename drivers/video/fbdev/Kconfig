@@ -666,6 +666,15 @@ config FB_N411
 	  This enables support for the Apollo display controller in its
 	  Hecuba form using the n411 devkit.
 
+config FB_XENOS
+	tristate "Xbox 360 Framebuffer Support"
+	depends on (FB = y) && PPC
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	help
+	  This is the frame buffer device driver for the Microsoft Xbox 360.
+
 config FB_HGA
 	tristate "Hercules mono graphics support"
 	depends on FB && X86
