@@ -207,6 +207,9 @@
 /* Atheros AR933X SoC */
 #define PORT_AR933X	99
 
+/* Xenon XBOX 360 Southbridge */
+#define PORT_XENON     91
+
 /* MCHP 16550A UART with 256 byte FIFOs */
 #define PORT_MCHP16550A	100
 

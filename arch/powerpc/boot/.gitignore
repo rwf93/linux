@@ -34,6 +34,7 @@ zImage.maple
 zImage.miboot
 zImage.pmac
 zImage.pseries
+zImage.xenon
 zconf.h
 zlib.h
 zutil.h
