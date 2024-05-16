@@ -93,7 +93,7 @@ static struct scsi_host_template xenon_sht = {
 static struct ata_port_operations xenon_ops = {
 	.inherits		= &ata_bmdma_port_ops,
 // 	.lost_interrupt		= ATA_OP_NULL,
-	.error_handler		= xenon_bmdma_error_handler,
+//	.error_handler		= xenon_bmdma_error_handler,
 	.scr_read		= xenon_scr_read,
 	.scr_write		= xenon_scr_write,
 };
