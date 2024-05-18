@@ -9,6 +9,7 @@
  * published by the Free Software Foundation.
 */
 
+#include "linux/device.h"
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -347,7 +348,11 @@ static struct uart_ops xenon_ops = {
 #ifdef CONFIG_CONSOLE_POLL
 	.poll_put_char  = xenon_poll_put_char,
 	.poll_get_char  = xenon_poll_get_char,
-	#endif
+#endif
+};
+
+static struct device xenon_device = {
+	.init_name = "Xenon UART",
 };
 
 static struct uart_port xenon_port = {
@@ -357,6 +362,7 @@ static struct uart_port xenon_port = {
 	.mapbase        = 0x200ea001010ULL,
 	.iotype         = UPIO_MEM,
 	.uartclk        = 1843200,
+	.dev		= &xenon_device,
 };
 
 static struct console xenon_console;
@@ -379,17 +385,27 @@ static int __init xenon_init(void)
 
 	printk(KERN_INFO "Xenon XBOX 360 serial driver\n");
 
+	result = device_register(&xenon_device);
+	if(result) {
+		put_device(&xenon_device);
+	}
+
 	result = uart_register_driver(&xenon_reg);
 	dprintk("Xenon uart_register_driver() = %d", result);
-	if (result)
+	if (result) {
+		device_unregister(&xenon_device);	
 		return result;
+	}
 
 	xenon_port.membase = ioremap(xenon_port.mapbase, 0x10);
 
 	result = uart_add_one_port(&xenon_reg, &xenon_port);
 	dprintk("Xenon uart_add_one_port() = %d", result);
-	if (result)
+	if (result) {
+		device_unregister(&xenon_device);
 		uart_unregister_driver(&xenon_reg);
+		return result;
+	}
 
 	return result;
 }
@@ -399,6 +415,7 @@ static void __exit xenon_exit(void)
 	printk(KERN_INFO "Xenon XBOX 360 serial driver exit\n");
 	uart_remove_one_port(&xenon_reg, &xenon_port);
 	uart_unregister_driver(&xenon_reg);
+	device_unregister(&xenon_device);
 }
 
 module_init(xenon_init);
