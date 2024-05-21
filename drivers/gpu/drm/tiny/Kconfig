@@ -96,6 +96,15 @@ config DRM_SIMPLEDRM
 	  On x86 BIOS or UEFI systems, you should also select SYSFB_SIMPLEFB
 	  to use UEFI and VESA framebuffers.
 
+config DRM_XENOS
+  tristate "Xbox 360 'Xenos' driver"
+  depends on DRM && MMU
+  select DRM_GEM_SHMEM_HELPER
+  select DRM_GEM_DMA_HELPER
+  select DRM_KMS_HELPER
+  help
+    wow this sure does the xbox 360 a good
+
 config TINYDRM_HX8357D
 	tristate "DRM support for HX8357D display panels"
 	depends on DRM && SPI
