@@ -1,8 +1,6 @@
 config PPC_XENON
 	bool "Xenon"
 	depends on PPC64
-	select PPC_NATIVE
-	select DMA_VIRT_OPS
 	select HAVE_PCI
 	default y
 	help

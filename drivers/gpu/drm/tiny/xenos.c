@@ -37,6 +37,12 @@
 #define DRIVER_MAJOR 1
 #define DRIVER_MINOR 0
 
+struct xenos_fb {
+	dma_addr_t dma_addr;
+	void *vaddr;
+	size_t size;
+};
+
 struct xenos_device {
 	struct drm_device dev;
 
@@ -44,7 +50,7 @@ struct xenos_device {
 	struct drm_connector connector;
 
 	struct drm_display_mode fixed_mode;
-	struct drm_gem_dma_object *real_framebuffer;
+	struct xenos_fb real_framebuffer;
 
 	void __iomem *regs;
 };
@@ -70,22 +76,27 @@ static void xenos_enable(struct drm_simple_display_pipe *pipe,
 	// since I haven't worked out how to describe nonlinear tilings yet,
 	// let's just fake it with shadow buffers
 	if (crtc_state->planes_changed ||
-	    IS_ERR_OR_NULL(xenos->real_framebuffer)) {
+	    IS_ERR_OR_NULL(xenos->real_framebuffer.vaddr)) {
 		// we're guaranteed no scaling in simple pipe, so this is ok
 		int width = plane_state->fb->width;
 		int height = plane_state->fb->height;
 		int bpp = drm_format_info_bpp(plane_state->fb->format, 0);
 		int cpp = DIV_ROUND_UP(bpp, 8);
 
-		if (!IS_ERR_OR_NULL(xenos->real_framebuffer))
-			drm_gem_dma_free(xenos->real_framebuffer);
+		if (!IS_ERR_OR_NULL(xenos->real_framebuffer.vaddr))
+			dma_free_coherent(xenos->dev.dev,
+					  xenos->real_framebuffer.size,
+					  xenos->real_framebuffer.vaddr,
+					  xenos->real_framebuffer.dma_addr);
 
-		xenos->real_framebuffer =
-			drm_gem_dma_create(&xenos->dev, width * height * cpp);
+		xenos->real_framebuffer.size = width * height * cpp;
+		xenos->real_framebuffer.vaddr = dma_alloc_coherent(
+			xenos->dev.dev, xenos->real_framebuffer.size,
+			&xenos->real_framebuffer.dma_addr, 0);
 
-		drm_info(&xenos->dev, "Using %dx%d (%04x) fb\n", width, height,
-			 width * height * cpp);
-		iowrite32be(xenos->real_framebuffer->dma_addr,
+		drm_info(&xenos->dev, "Using %dx%d (%04lx) fb\n", width, height,
+			 xenos->real_framebuffer.size);
+		iowrite32be(xenos->real_framebuffer.dma_addr,
 			    xenos->regs + 0x6110);
 	}
 
@@ -97,8 +108,33 @@ static void xenos_disable(struct drm_simple_display_pipe *pipe)
 	struct xenos_device *xenos = xenos_of_pipe(pipe);
 	iowrite32be(0, xenos->regs + 0x6100);
 
-	drm_gem_dma_free(xenos->real_framebuffer);
-	xenos->real_framebuffer = NULL;
+	dma_free_coherent(xenos->dev.dev, xenos->real_framebuffer.size,
+			  xenos->real_framebuffer.vaddr,
+			  xenos->real_framebuffer.dma_addr);
+	xenos->real_framebuffer.vaddr = NULL;
+}
+
+static void xenos_blit(struct iosys_map dst, struct iosys_map src,
+		       struct drm_rect src_rect, struct drm_framebuffer *fb)
+{
+	for (int y = src_rect.y1; y < src_rect.y2; y++) {
+		// tiles are 4x2 - copy 4px at a time
+		for (int x = src_rect.x1 & ~3; x < src_rect.x2; x += 4) {
+			// horrible calculation from libxenon
+			int ndx = ((((y & ~31) * fb->width) + (x & ~31) * 32) +
+				   (((x & 3) + ((y & 1) << 2) +
+				     ((x & 28) << 1) + ((y & 30) << 5)) ^
+				    ((y & 8) << 2)));
+
+			u32 *dst32 = dst.vaddr + ndx * 4;
+			const u32 *src32 =
+				src.vaddr + x * 4 + y * fb->pitches[0];
+			*dst32++ = swab32(*src32++);
+			*dst32++ = swab32(*src32++);
+			*dst32++ = swab32(*src32++);
+			*dst32++ = swab32(*src32++);
+		}
+	}
 }
 
 static void xenos_update(struct drm_simple_display_pipe *pipe,
@@ -108,23 +144,22 @@ static void xenos_update(struct drm_simple_display_pipe *pipe,
 	struct drm_device *dev = &xenos->dev;
 
 	struct drm_plane_state *state = pipe->plane.state;
-	struct drm_shadow_plane_state *shadow_plane_state = to_drm_shadow_plane_state(state);
+	struct drm_shadow_plane_state *shadow_plane_state =
+		to_drm_shadow_plane_state(state);
 	struct drm_framebuffer *fb = state->fb;
 	struct drm_atomic_helper_damage_iter iter;
 	struct drm_rect damage;
-	int ret, idx;
+	int idx;
 
 	struct iosys_map src = shadow_plane_state->data[0];
 	struct iosys_map dst;
 
 	// I don't understand the DRM lifecycle well enough, but this gets
 	// called *before* enable in some cases.
-	if (IS_ERR_OR_NULL(xenos->real_framebuffer))
+	if (IS_ERR_OR_NULL(xenos->real_framebuffer.vaddr))
 		return;
 
-	ret = drm_gem_dma_vmap(xenos->real_framebuffer, &dst);
-	if (ret)
-		return;
+	iosys_map_set_vaddr(&dst, xenos->real_framebuffer.vaddr);
 
 	if (!drm_dev_enter(&xenos->dev, &idx))
 		return;
@@ -135,22 +170,12 @@ static void xenos_update(struct drm_simple_display_pipe *pipe,
 
 		if (!drm_rect_intersect(&dst_clip, &damage))
 			continue;
-
-		for (int y = damage.y1; y < damage.y2; y++) {
-			for (int x = damage.x1; x < damage.x2; x++) {
-				// horrible calculation from libxenon
-				int ndx = ((((y & ~31)*fb->width) + (x & ~31)*32 ) +
-					   (((x&3) + ((y&1)<<2) + ((x&28)<<1) + ((y&30)<<5)) ^ ((y&8)<<2)));
-
-				u32 *dst32 = dst.vaddr + ndx * 4;
-				const u32 *src32 = src.vaddr + x*4 + y * fb->pitches[0];
-				*dst32 = swab32(*src32);
-				//iosys_map_memcpy_to(&dst, ndx * 4, src.vaddr + x*4 + y * fb->pitches[0], 4);
-			}
-		}
+		
+		xenos_blit(dst, src, damage, fb);
 	}
 
-	dma_sync_single_for_device(dev->dev, xenos->real_framebuffer->dma_addr, 1280*720*4, DMA_TO_DEVICE);
+	dma_sync_single_for_device(dev->dev, xenos->real_framebuffer.dma_addr,
+				   xenos->real_framebuffer.size, DMA_TO_DEVICE);
 
 	drm_dev_exit(idx);
 }
@@ -232,6 +257,7 @@ static int xenos_load(struct xenos_device *xenos)
 	if (ret)
 		return ret;
 
+	drm_plane_enable_fb_damage_clips(&xenos->pipe.plane);
 	drm_mode_config_reset(dev);
 	return 0;
 }

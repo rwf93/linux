@@ -101,6 +101,7 @@ static inline void clean_dcache_range(unsigned long start, unsigned long stop)
  * to invalidate the cache so the PPC core doesn't get stale data
  * from the CPM (no cache snooping here :-).
  */
+#ifndef CONFIG_PPC_XENON
 static inline void invalidate_dcache_range(unsigned long start,
 					   unsigned long stop)
 {
@@ -114,6 +115,15 @@ static inline void invalidate_dcache_range(unsigned long start,
 		dcbi(addr);
 	mb();	/* sync */
 }
+#else
+// the 970FX doesn't have dcbi. Yes, really. See 2.2.1.2:
+// https://marcan.st/transf/970FX_user_manual.v1.7.2008MAR14_pub.pdf
+static inline void invalidate_dcache_range(unsigned long start,
+					   unsigned long stop)
+{
+	flush_dcache_range(start, stop);
+}
+#endif
 
 #ifdef CONFIG_4xx
 static inline void flush_instruction_cache(void)
