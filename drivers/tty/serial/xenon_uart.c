@@ -9,7 +9,6 @@
  * published by the Free Software Foundation.
 */
 
-#include "linux/device.h"
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -24,6 +23,16 @@
 #include <linux/workqueue.h>
 #include <linux/delay.h>
 
+#define SERIAL_XENON_NAME	"xenon-uart"
+#define SERIAL_XENON_DEV	"ttyS"
+#define SERIAL_XENON_MAJOR	4
+#define SERIAL_XENON_MINOR	64
+
+#define SERIAL_XENON_BAUD	115200
+#define SERIAL_XENON_BITS	8
+#define SERIAL_XENON_PARITY	'n'
+#define SERIAL_XENON_FLOW	'n'
+
 #if 0
 #define dprintk(f, x...) do { printk(KERN_DEBUG f "\n" , ##x); } while (0)
 #else
@@ -32,8 +41,7 @@
 
 static int xenon_status(unsigned char __iomem *membase)
 {
-	// return ((*(volatile uint32_t*)0x80000200ea001018) & 0x02000000);
-	return (*(volatile uint32_t*)(membase + 0x08));
+	return ioread32be(membase + 0x08);
 }
 
 static void xenon_putch(unsigned char __iomem *membase, unsigned char ch)
@@ -42,8 +50,7 @@ static void xenon_putch(unsigned char __iomem *membase, unsigned char ch)
 	while (!(xenon_status(membase) & 0x02000000));
 
 	/* put character into fifo */
-	// *(volatile uint32_t*)0x80000200ea001014 = (ch << 24) & 0xFF000000;
-	*(volatile uint32_t*)(membase + 0x04) = (ch << 24) & 0xFF000000;
+	iowrite32be((ch << 24) & 0xFF000000, membase + 0x04);
 }
 
 static int xenon_getch(unsigned char __iomem *membase)
@@ -54,7 +61,8 @@ static int xenon_getch(unsigned char __iomem *membase)
 	while ((status = xenon_status(membase)) & ~0x03000000);
 
 	if (status & 0x01000000)
-		return *(volatile uint32_t*)(membase + 0x00) >> 24;
+		return ioread32be(membase) >> 24;
+
 	return -1;
 }
 
@@ -70,13 +78,12 @@ static void xenon_enable_ms(struct uart_port *port)
 
 static void xenon_stop_tx(struct uart_port *port)
 {
-	//dprintk("Xenon xenon_stop_tx()");
+	dprintk("Xenon xenon_stop_tx()");
 }
 
 static void xenon_tx_chars(struct uart_port *port)
 {
 	struct circ_buf *xmit = &port->state->xmit;
-	// int count;
 
 	if (port->x_char) {
 		xenon_putch(port->membase, port->x_char);
@@ -84,6 +91,7 @@ static void xenon_tx_chars(struct uart_port *port)
 		port->x_char = 0;
 		return;
 	}
+
 	if (uart_circ_empty(xmit) || uart_tx_stopped(port)) {
 		xenon_stop_tx(port);
 		return;
@@ -147,8 +155,7 @@ static void xenon_break_ctl(struct uart_port *port, int break_state)
 	dprintk("Xenon xenon_break_ctl()");
 }
 
-static void xenon_set_termios(struct uart_port *port,
-							  struct ktermios *new, const struct ktermios *old)
+static void xenon_set_termios(struct uart_port *port, struct ktermios *new, const struct ktermios *old)
 {
 	int baud, quot, cflag = new->c_cflag;
 
@@ -157,16 +164,16 @@ static void xenon_set_termios(struct uart_port *port,
 	switch (cflag & CSIZE) {
 		case CS5:
 			dprintk(" - data bits = 5");
-			break;
+		break;
 		case CS6:
 			dprintk(" - data bits = 6");
-			break;
+		break;
 		case CS7:
 			dprintk(" - data bits = 7");
-			break;
+		break;
 		default: // CS8
 			dprintk(" - data bits = 8");
-			break;
+		break;
 	}
 
 	/* determine the parity */
@@ -176,7 +183,7 @@ static void xenon_set_termios(struct uart_port *port,
 		else
 			pr_debug(" - parity = even\n");
 		else
-		pr_debug(" - parity = none\n");
+			pr_debug(" - parity = none\n");
 
 	/* figure out the stop bits requested */
 	if (cflag & CSTOPB)
@@ -202,7 +209,8 @@ static struct workqueue_struct *uart_workqueue;
 static struct delayed_work uart_delayed_work;
 static atomic_t keep_polling = ATOMIC_INIT(1);
 
-static void xenon_rx_work_handler(struct work_struct *work) {
+static void xenon_rx_work_handler(struct work_struct *work)
+{
 	struct uart_port *port;
 	int rx;
 
@@ -228,10 +236,11 @@ skip:
 	queue_delayed_work(uart_workqueue, &uart_delayed_work, msecs_to_jiffies(CONFIG_SERIAL_XENON_UART_POLL_RATE));
 }
 
-static int xenon_uart_setup_polling(void) {
+static int xenon_uart_setup_polling(void)
+{
 	uart_workqueue = create_singlethread_workqueue("xenon-uart-rx");
 	if(uart_workqueue == NULL) {
-		dprintk("Couldn't create xenon rx workqueue...");
+		dprintk(KERN_ERR "Couldn't create xenon rx workqueue...");
 		return -ENOMEM;
 	}
 
@@ -241,7 +250,8 @@ static int xenon_uart_setup_polling(void) {
 	return 0;
 }
 
-static void xenon_uart_shutdown_polling(void) {
+static void xenon_uart_shutdown_polling(void)
+{
 	atomic_set(&keep_polling, 1);
 	flush_workqueue(uart_workqueue);
 	msleep(500);
@@ -335,11 +345,7 @@ static struct uart_ops xenon_ops = {
 	.break_ctl      = xenon_break_ctl,
 	.startup        = xenon_startup,
 	.shutdown       = xenon_shutdown,
-	//      .flush_buffer   = xenon_flush_buffer,
 	.set_termios    = xenon_set_termios,
-	//      .set_ldisc      = xenon_set_ldisc,
-	//      .pm             = xenon_pm,
-	//      .set_wake       = xenon_set_wake,
 	.type           = xenon_type,
 	.release_port   = xenon_release_port,
 	.request_port   = xenon_request_port,
@@ -369,57 +375,15 @@ static struct console xenon_console;
 
 static struct uart_driver xenon_reg = {
 	.owner          = THIS_MODULE,
-	.driver_name    = "xenon_uart",
-	.dev_name       = "ttyS",
-	.major          = TTY_MAJOR,
-	.minor          = 64,
+	.driver_name    = SERIAL_XENON_NAME,
+	.dev_name       = SERIAL_XENON_DEV,
+	.major          = SERIAL_XENON_MAJOR,
+	.minor          = SERIAL_XENON_MINOR,
 	.nr             = 1,
 #ifdef CONFIG_SERIAL_XENON_CONSOLE
 	.cons           = &xenon_console,
-#endif
+	#endif
 };
-
-static int __init xenon_init(void)
-{
-	int result;
-
-	printk(KERN_INFO "Xenon XBOX 360 serial driver\n");
-
-	result = device_register(&xenon_device);
-	if(result) {
-		put_device(&xenon_device);
-	}
-
-	result = uart_register_driver(&xenon_reg);
-	dprintk("Xenon uart_register_driver() = %d", result);
-	if (result) {
-		device_unregister(&xenon_device);	
-		return result;
-	}
-
-	xenon_port.membase = ioremap(xenon_port.mapbase, 0x10);
-
-	result = uart_add_one_port(&xenon_reg, &xenon_port);
-	dprintk("Xenon uart_add_one_port() = %d", result);
-	if (result) {
-		device_unregister(&xenon_device);
-		uart_unregister_driver(&xenon_reg);
-		return result;
-	}
-
-	return result;
-}
-
-static void __exit xenon_exit(void)
-{
-	printk(KERN_INFO "Xenon XBOX 360 serial driver exit\n");
-	uart_remove_one_port(&xenon_reg, &xenon_port);
-	uart_unregister_driver(&xenon_reg);
-	device_unregister(&xenon_device);
-}
-
-module_init(xenon_init);
-module_exit(xenon_exit);
 
 #ifdef CONFIG_SERIAL_XENON_CONSOLE
 
@@ -432,8 +396,7 @@ static void xenon_console_putchar(struct uart_port *port, unsigned char ch)
  * Print a string to the serial port trying not to disturb
  * any possible real use of the port...
  */
-static void xenon_console_write(struct console *cons,
-								const char *s, unsigned int count)
+static void xenon_console_write(struct console *cons, const char *s, unsigned int count)
 {
 	uart_console_write(&xenon_port, s, count, xenon_console_putchar);
 }
@@ -446,30 +409,23 @@ static void xenon_console_write(struct console *cons,
  */
 static int __init xenon_console_setup(struct console *cons, char *options)
 {
-	int baud = 115200;
-	int bits = 8;
-	int parity = 'n';
-	int flow = 'n';
-#if 0
-	ret = xenon_map_port(uport);
-	if (ret)
-		return ret;
-
-	xenon_reset(port);
-	xenon_pm(port, 0, -1);
-#endif
+	int baud	= SERIAL_XENON_BAUD;
+	int bits	= SERIAL_XENON_BITS;
+	int parity	= SERIAL_XENON_PARITY;
+	int flow	= SERIAL_XENON_FLOW;
 
 	if (options)
 		uart_parse_options(options, &baud, &parity, &bits, &flow);
+	
 	return uart_set_options(&xenon_port, cons, baud, parity, bits, flow);
 }
 
 static struct console xenon_console = {
-	.name   = "ttyS",
+	.name   = SERIAL_XENON_DEV,
 	.write  = xenon_console_write,
-	.device       = uart_console_device,
+	.device = uart_console_device,
 	.setup  = xenon_console_setup,
-	.flags  = CON_PRINTBUFFER | CON_ANYTIME,
+	.flags  = CON_PRINTBUFFER,
 	.index  = -1,
 	.data   = &xenon_reg,
 };
@@ -479,6 +435,7 @@ static int __init xenon_serial_console_init(void)
 	xenon_port.membase = ioremap(xenon_port.mapbase, 0x10);
 
 	register_console(&xenon_console);
+
 	return 0;
 }
 
@@ -486,7 +443,55 @@ console_initcall(xenon_serial_console_init);
 
 #endif /* CONFIG_SERIAL_XENON_CONSOLE */
 
+static int __init xenon_init(void)
+{
+	int result;
+
+	printk(KERN_INFO "Xenon XBOX 360 serial driver\n");
+
+	result = device_register(&xenon_device);
+	if(result)
+		goto err_uart_device;
+
+	result = uart_register_driver(&xenon_reg);
+	if (result)
+		goto err_uart_driver;
+
+	xenon_port.membase = ioremap(xenon_port.mapbase, 0x10);
+
+	result = uart_add_one_port(&xenon_reg, &xenon_port);
+	if (result)
+		goto err_uart_port;
+
+	return result;
+
+err_uart_port:
+	dprintk(KERN_ERR "err_uart_port: %d", result);
+	uart_remove_one_port(&xenon_reg, &xenon_port);
+err_uart_driver:
+	dprintk(KERN_ERR "err_uart: %d", result);
+	uart_unregister_driver(&xenon_reg);
+	device_unregister(&xenon_device); // Hopefully it's okay call before put_device...
+err_uart_device:
+	dprintk(KERN_ERR "err_device: %d", result);
+	put_device(&xenon_device);
+
+	return result;
+}
+
+static void __exit xenon_exit(void)
+{
+	printk(KERN_INFO "Xenon XBOX 360 serial driver exit\n");
+	uart_remove_one_port(&xenon_reg, &xenon_port);
+	uart_unregister_driver(&xenon_reg);
+	put_device(&xenon_device);
+	device_unregister(&xenon_device);
+}
+
+module_init(xenon_init);
+module_exit(xenon_exit);
+
 MODULE_AUTHOR("Herbert Poetzl <herbert@13thfloor.at>");
 MODULE_DESCRIPTION("Xenon XBOX 360 Serial port driver");
 MODULE_LICENSE("GPL v2");
-// MODULE_ALIAS("platform:xenon-uart");
+MODULE_ALIAS_CHARDEV(SERIAL_XENON_MAJOR, SERIAL_XENON_MINOR);
