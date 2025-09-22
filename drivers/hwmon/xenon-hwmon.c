@@ -1,20 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  Xenon HW Monitor via SMC driver.
  *
+ *  Copyright (C) 2025 Michael "Techflash" Garofalo
  *  Copyright (C) 2010 Herbert Poetzl
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; version 2 of the License.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -25,7 +14,7 @@
 #include <linux/hwmon-sysfs.h>
 
 #define DRV_NAME	"xenon-hwmon"
-#define DRV_VERSION	"0.1"
+#define DRV_VERSION	"0.2"
 
 #if 0
 struct hwmon {
@@ -35,6 +24,13 @@ struct hwmon {
 };
 #endif
 static unsigned int fan_speed[2];
+
+static const char *temp_labels[4] = {
+	"CPU",
+	"GPU",
+	"EDRAM",
+	"Motherboard"
+};
 
 int xenon_smc_message_wait(void *msg);
 
@@ -72,100 +68,134 @@ static int xenon_set_gpu_fan_speed(unsigned val)
 }
 
 
-static ssize_t show_fan_speed(struct device *dev, struct device_attribute *attr, char *buf)
+static int xenon_read(struct device *dev, enum hwmon_sensor_types type,
+                      u32 attr, int channel, long *val)
 {
-	int fan_nr = to_sensor_dev_attr(attr)->index;
-	// void *p = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%u\n", fan_speed[fan_nr]);
+	switch (type) {
+	case hwmon_temp:
+		if (attr == hwmon_temp_input) {
+			*val = xenon_get_temp(channel);
+			return 0;
+		}
+		break;
+	case hwmon_pwm:
+		if (attr == hwmon_pwm_input) {
+			*val = fan_speed[channel];
+			return 0;
+		}
+		break;
+	default:
+		break;
+	}
+	return -EOPNOTSUPP;
 }
 
-static ssize_t set_fan_speed(struct device *dev, struct device_attribute *attr,
-			     const char *buf, size_t count)
+static int xenon_read_string(struct device *dev, enum hwmon_sensor_types type,
+                             u32 attr, int channel, const char **str)
 {
-	int fan_nr = to_sensor_dev_attr(attr)->index;
-	unsigned int val = simple_strtol(buf, NULL, 10);
-	// void *p = dev_get_drvdata(dev);
-
-	fan_speed[fan_nr] = val & 0xFF;
-
-	if (fan_nr == 0)
-		xenon_set_cpu_fan_speed(val);
-	if (fan_nr == 1)
-		xenon_set_gpu_fan_speed(val);
-
-	return count;
+	switch (type) {
+	case hwmon_temp:
+		if (attr == hwmon_temp_label) {
+			if (channel > 3 || channel < 0)
+				return -EINVAL;
+			*str = temp_labels[channel];
+			return 0;
+		}
+		break;
+	/* labels not supported for PWM sadly :( */
+	default:
+		break;
+	}
+	return -EOPNOTSUPP;
 }
 
-static SENSOR_DEVICE_ATTR(cpu_fan_speed, S_IRUGO | S_IWUSR,
-		show_fan_speed, set_fan_speed, 0);
-static SENSOR_DEVICE_ATTR(gpu_fan_speed, S_IRUGO | S_IWUSR,
-		show_fan_speed, set_fan_speed, 1);
-
-static ssize_t show_temp(struct device *dev, struct device_attribute *attr, char *buf)
+static int xenon_write(struct device *dev, enum hwmon_sensor_types type,
+                       u32 attr, int channel, long val)
 {
-	int temp_nr = to_sensor_dev_attr(attr)->index;
-	// struct dev *p = dev_get_drvdata(pdev);
-	unsigned temp = xenon_get_temp(temp_nr);
-
-	return sprintf(buf, "%d\n", temp);
+	switch (type) {
+	case hwmon_pwm:
+		if (attr == hwmon_pwm_input) {
+			fan_speed[channel] = val & 0xff;
+			if (channel == 0)
+				xenon_set_cpu_fan_speed(val);
+			if (channel == 1)
+				xenon_set_gpu_fan_speed(val);
+			return 0;
+		}
+		break;
+	default:
+		break;
+	}
+	return -EOPNOTSUPP;
 }
 
-static SENSOR_DEVICE_ATTR(cpu_temp, S_IRUGO, show_temp, NULL, 0);
-static SENSOR_DEVICE_ATTR(gpu_temp, S_IRUGO, show_temp, NULL, 1);
-static SENSOR_DEVICE_ATTR(edram_temp, S_IRUGO, show_temp, NULL, 2);
-static SENSOR_DEVICE_ATTR(motherboard_temp, S_IRUGO, show_temp, NULL, 3);
-
-static ssize_t show_name(struct device *dev, struct device_attribute *attr, char *buf)
+static umode_t xenon_is_visible(const void *data,
+                               enum hwmon_sensor_types type,
+			       u32 attr, int channel)
 {
-	return sprintf(buf, "xenon\n");
+	switch (type) {
+	case hwmon_pwm:
+		switch (attr) {
+		case hwmon_pwm_input:
+			return 0644;
+		default:
+		}
+		return 0;
+	case hwmon_temp:
+		switch (attr) {
+		case hwmon_temp_label:
+		case hwmon_temp_input:
+			return 0444;
+		default:
+		}
+		return 0;
+	default:
+		return 0;
+	}
+
 }
 
-static SENSOR_DEVICE_ATTR(name, S_IRUGO, show_name, NULL, 0);
-
-static struct attribute *xenon_hwmon_attributes[] = {
-	&sensor_dev_attr_cpu_fan_speed.dev_attr.attr,
-	&sensor_dev_attr_gpu_fan_speed.dev_attr.attr,
-	&sensor_dev_attr_cpu_temp.dev_attr.attr,
-	&sensor_dev_attr_gpu_temp.dev_attr.attr,
-	&sensor_dev_attr_edram_temp.dev_attr.attr,
-	&sensor_dev_attr_motherboard_temp.dev_attr.attr,
-	&sensor_dev_attr_name.dev_attr.attr,
-	NULL,
+static const struct hwmon_channel_info *xenon_info[] = {
+	HWMON_CHANNEL_INFO(temp,
+		HWMON_T_INPUT | HWMON_T_LABEL,   /* cpu */
+		HWMON_T_INPUT | HWMON_T_LABEL,   /* gpu */
+		HWMON_T_INPUT | HWMON_T_LABEL,   /* edram */
+		HWMON_T_INPUT | HWMON_T_LABEL    /* motherboard */
+	),
+	HWMON_CHANNEL_INFO(pwm,
+		HWMON_PWM_INPUT, /* cpu fan */
+		HWMON_PWM_INPUT  /* gpu fan */
+	),
+	NULL
 };
 
-static const struct attribute_group xenon_hwmon_group = {
-	.attrs = xenon_hwmon_attributes,
+static const struct hwmon_ops xenon_ops = {
+	.is_visible = xenon_is_visible,
+	.read = xenon_read,
+	.read_string = xenon_read_string,
+	.write = xenon_write,
 };
+
+static const struct hwmon_chip_info xenon_chip_info = {
+	.ops = &xenon_ops,
+	.info = xenon_info,
+};
+
 
 static int __init xenon_hwmon_probe(struct platform_device *pdev)
 {
 	struct device *dev;
-	int err;
 
-	err = sysfs_create_group(&pdev->dev.kobj, &xenon_hwmon_group);
-	if (err)
-		goto out;
-
-	dev = hwmon_device_register(&pdev->dev);
-	if (IS_ERR(dev)) {
-		err = PTR_ERR(dev);
-		goto out_sysfs_remove_group;
-	}
-
-	platform_set_drvdata(pdev, dev);
-	return 0;
-
-out_sysfs_remove_group:
-	sysfs_remove_group(&pdev->dev.kobj, &xenon_hwmon_group);
-out:
-	return err;
+	dev = hwmon_device_register_with_info(&pdev->dev,
+					  "xenon",
+					  NULL,
+					  &xenon_chip_info,
+					  NULL);
+	return PTR_ERR_OR_ZERO(dev);
 }
 
 static int __exit xenon_hwmon_remove(struct platform_device *pdev)
 {
-	hwmon_device_unregister(&pdev->dev);
-	sysfs_remove_group(&pdev->dev.kobj, &xenon_hwmon_group);
 	return 0;
 }
 
@@ -194,7 +224,7 @@ static void __exit xenon_hwmon_exit(void)
 module_init(xenon_hwmon_init);
 module_exit(xenon_hwmon_exit);
 
-MODULE_AUTHOR("Herbert Poetzl <herbert@13thfloor.at>");
-MODULE_DESCRIPTION("Character Interface for Xenon (H)ana");
+MODULE_AUTHOR("Michael \"Techflash\" Garofalo <officialTechflashYT@gmail.com>");
+MODULE_DESCRIPTION("Xenon HW Monitor via SMC driver - revised");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
